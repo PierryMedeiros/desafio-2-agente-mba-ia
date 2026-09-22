@@ -1,0 +1,18 @@
+{
+  "times": [
+    {"id": "pagamentos", "nome": "Pagamentos", "gestor": {"id": "g1", "nome": "Helena Braga", "email": "helena.braga@nimbus.dev"}},
+    {"id": "risco", "nome": "Risco", "gestor": {"id": "g2", "nome": "Otávio Lins", "email": "otavio.lins@nimbus.dev"}},
+    {"id": "plataforma", "nome": "Plataforma", "gestor": {"id": "g3", "nome": "Sofia Arantes", "email": "sofia.arantes@nimbus.dev"}},
+    {"id": "dados", "nome": "Dados", "gestor": {"id": "g4", "nome": "Caio Ferraz", "email": "caio.ferraz@nimbus.dev"}}
+  ],
+  "cargos": [
+    {"id": "engenheiro-de-software", "nome": "Engenheiro de software"},
+    {"id": "engenheiro-de-dados", "nome": "Engenheiro de dados"},
+    {"id": "analista-de-produto", "nome": "Analista de produto"}
+  ],
+  "niveis": ["junior", "pleno", "senior"],
+  "colaboradores": [
+    {"id": "c1", "nome": "Marcos Vieira", "email": "marcos.vieira@nimbus.dev", "time": "pagamentos", "cargo": "engenheiro-de-software", "nivel": "senior", "situacao": "ativo"},
+    {"id": "c2", "nome": "Priscila Alencar", "email": "priscila.alencar@nimbus.dev", "time": "dados", "cargo": "engenheiro-de-dados", "nivel": "pleno", "situacao": "ativo"}
+  ]
+}

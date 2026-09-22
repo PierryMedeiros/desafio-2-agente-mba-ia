@@ -1,0 +1,22 @@
+{
+  "todos": {
+    "email": true,
+    "canais": ["geral", "avisos"],
+    "papeis_nuvem": ["leitura-basica"]
+  },
+  "por_time": {
+    "pagamentos": {"times_github": ["pagamentos"], "canais": ["pagamentos"], "papeis_nuvem": ["pagamentos-leitura"]},
+    "risco": {"times_github": ["risco"], "canais": ["risco"], "papeis_nuvem": ["risco-leitura"]},
+    "plataforma": {"times_github": ["plataforma", "infraestrutura"], "canais": ["plataforma"], "papeis_nuvem": ["infra-leitura"]},
+    "dados": {"times_github": ["dados"], "canais": ["dados"], "papeis_nuvem": ["dados-leitura"]}
+  },
+  "por_nivel": {
+    "junior": {},
+    "pleno": {"papeis_nuvem": ["deploy-homolog"]},
+    "senior": {"papeis_nuvem": ["deploy-homolog", "deploy-producao"]}
+  },
+  "sensiveis": {
+    "times_github": ["infraestrutura"],
+    "papeis_nuvem": ["deploy-producao"]
+  }
+}

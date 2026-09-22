@@ -1,0 +1,32 @@
+[project]
+name = "nimbus"
+version = "0.1.0"
+description = "Sistemas simulados, diretório e verificador da empresa Nimbus"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "mcp>=1.20,<2",
+    "pydantic",
+    "httpx",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+nimbus-sistemas = "nimbus.sistemas:main"
+nimbus-diretorio = "nimbus.diretorio_mcp:main"
+nimbus-verificar = "nimbus.verificar:main"
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["testes"]
