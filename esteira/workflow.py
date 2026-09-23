@@ -175,11 +175,11 @@ async def conferir(ctx: Context, node_input: dict) -> Event:
         mensagem = " ".join(perguntas)
         ctx.state["pergunta_pendente"] = mensagem
         return Event(
-            output={"valido": False, "problemas": problemas, "mensagem": mensagem},
+            output={"valido": False, "extraido": extraido, "problemas": problemas, "mensagem": mensagem},
             route="faltando",
         )
     ctx.state["pedido"] = pedido
-    return Event(output={"valido": True, "pedido": pedido}, route=tipo)
+    return Event(output={"valido": True, "extraido": extraido, "pedido": pedido}, route=tipo)
 
 
 # Admissão

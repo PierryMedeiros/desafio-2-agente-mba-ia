@@ -71,6 +71,8 @@ def criar_agente() -> LlmAgent:
         output_schema=PedidoExtraido,
         generate_content_config=types.GenerateContentConfig(
             temperature=0,
+            # Extração curta: sem raciocínio estendido, cada chamada fica bem mais rápida.
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
             http_options=types.HttpOptions(
                 retry_options=types.HttpRetryOptions(attempts=5, initial_delay=2, max_delay=30)
             ),

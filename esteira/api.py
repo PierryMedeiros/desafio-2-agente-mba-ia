@@ -78,13 +78,17 @@ async def executar(pedido_id: str, mensagem: types.Content) -> None:
     """Roda o workflow até concluir ou parar esperando alguém, e grava a situação."""
     pendencia: dict[str, Any] | None = None
     resultado: dict[str, Any] | None = None
+    parciais: list[str] = []
     try:
         async for evento in runner.run_async(user_id=USUARIO, session_id=pedido_id, new_message=mensagem):
             for chamada in evento.get_function_calls():
                 if chamada.name == PEDIDO_DE_INPUT:
                     pendencia = _pendencia(chamada)
-            if evento.output is not None and nome_do_no(evento) == "concluir":
+            no = nome_do_no(evento)
+            if evento.output is not None and no == "concluir":
                 resultado = evento.output
+            elif isinstance(evento.output, dict) and no and no.startswith(("provisionar_", "revogar_")):
+                parciais.extend(evento.output.get("acessos") or [])
     except Exception as erro:  # noqa: BLE001 - qualquer falha encerra o pedido como falhou
         logger.exception("pedido %s falhou", pedido_id)
         banco.registrar(pedido_id, "pedido_falhou", {"erro": f"{type(erro).__name__}: {erro}"})
@@ -100,7 +104,10 @@ async def executar(pedido_id: str, mensagem: types.Content) -> None:
     if resultado is not None:
         campos.update(situacao="concluido", pendencia=None, acessos=resultado["acessos"])
     elif pendencia is not None:
-        campos.update(situacao="aguardando_resposta", pendencia=pendencia)
+        # Enquanto o gestor não decide, os acessos comuns já criados aparecem.
+        acessos = banco.ler_pedido(pedido_id)["acessos"]
+        acessos["criados"] = list(dict.fromkeys(acessos["criados"] + parciais))
+        campos.update(situacao="aguardando_resposta", pendencia=pendencia, acessos=acessos)
     else:
         banco.registrar(pedido_id, "pedido_falhou", {"erro": "workflow terminou sem concluir nem pedir resposta"})
         campos.update(situacao="falhou", pendencia=None)

@@ -24,7 +24,6 @@ CHAVE_CHAMADA = "chamada_sistema"
 
 # Saída de cada nó que vira etapa da trilha.
 ETAPAS_POR_NO = {
-    "interpretar": "pedido_extraido_pelo_agente",
     "calcular_acessos": "acessos_calculados_pela_politica",
     "concluir": "pedido_concluido",
 }
@@ -76,7 +75,11 @@ class TrilhaPlugin(BasePlugin):
         if event.output is None or no is None:
             return None
         if no == "conferir":
+            # A saída do agente chega ao plugin sem `output` (o Runner limpa o
+            # campo quando a saída é a própria mensagem do modelo), então o que
+            # ele extraiu é registrado a partir da entrada de `conferir`.
             saida = event.output
+            banco.registrar(pedido_id, "pedido_extraido_pelo_agente", saida.get("extraido"))
             if saida.get("valido"):
                 banco.registrar(pedido_id, "pedido_estruturado", saida["pedido"])
             else:
