@@ -1,6 +1,7 @@
 """O workflow da esteira de acessos.
 
     START -> receber -> interpretar (agente) -> conferir
+    conferir --reler-->        interpretar                        (saída vazia do modelo)
     conferir --faltando-->     perguntar_rh -> receber            (laço com o RH)
     conferir --admissao-->     calcular_acessos
     calcular_acessos --> provisionar_email | provisionar_github
@@ -65,7 +66,11 @@ def receber(ctx: Context, node_input: Any) -> str:
     for item in conversa[1:]:
         rotulo = "Pergunta da esteira" if item["autor"] == "esteira" else "Resposta do RH"
         linhas.append(f"{rotulo}: {item['texto']}")
-    return "\n".join(linhas)
+    linhas.append("\nExtraia o pedido estruturado considerando o pedido e todas as respostas do RH.")
+    texto = "\n".join(linhas)
+    ctx.state["texto_para_agente"] = texto
+    ctx.state["releituras"] = 0
+    return texto
 
 
 def perguntar_rh(node_input: dict):
@@ -78,6 +83,10 @@ def perguntar_rh(node_input: dict):
 
 
 # Conferência no diretório (determinística)
+
+# Quantas vezes o mesmo texto volta ao agente quando ele não devolve a
+# estrutura pedida (resposta vazia do modelo). Depois disso, pergunta ao RH.
+MAX_RELEITURAS = 2
 
 
 def _normalizar(texto: str) -> str:
@@ -108,14 +117,22 @@ def _resolver_id(valor: str | None, opcoes: list[dict[str, str]]) -> str | None:
     return None
 
 
-async def conferir(ctx: Context, node_input: dict) -> Event:
+async def conferir(ctx: Context, node_input: Any) -> Event:
     """Confere o que o agente extraiu contra o diretório, pelo MCP.
 
     Só segue adiante com valores que existem no diretório. Qualquer dado que
     falte ou que o diretório não reconheça vira pergunta ao RH, e nada é
     criado antes da resposta.
     """
-    extraido = node_input or {}
+    if not isinstance(node_input, dict):
+        # O modelo às vezes termina sem chamar set_model_response e a saída
+        # chega vazia. Relê o mesmo texto em vez de seguir com um chute.
+        releituras = ctx.state.get("releituras", 0)
+        if releituras < MAX_RELEITURAS:
+            ctx.state["releituras"] = releituras + 1
+            return Event(output=ctx.state["texto_para_agente"], route="reler")
+        node_input = {}
+    extraido = node_input
     pessoa = (extraido.get("pessoa") or "").strip()
     tipo = extraido.get("tipo")
     problemas: list[str] = []
@@ -355,7 +372,10 @@ def criar_workflow() -> Workflow:
         name="esteira_de_acessos",
         edges=[
             ("START", no_receber, no_interpretar, no_conferir),
-            (no_conferir, {"faltando": no_perguntar, "admissao": no_calcular, "desligamento": revogar}),
+            (
+                no_conferir,
+                {"faltando": no_perguntar, "reler": no_interpretar, "admissao": no_calcular, "desligamento": revogar},
+            ),
             (no_perguntar, no_receber),
             (no_calcular, (*criar, no_aprovacao)),
             (no_aprovacao, no_sensiveis),

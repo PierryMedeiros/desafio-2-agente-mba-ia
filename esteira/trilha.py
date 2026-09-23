@@ -79,6 +79,9 @@ class TrilhaPlugin(BasePlugin):
             # campo quando a saída é a própria mensagem do modelo), então o que
             # ele extraiu é registrado a partir da entrada de `conferir`.
             saida = event.output
+            if not isinstance(saida, dict):
+                banco.registrar(pedido_id, "agente_sem_resposta_estruturada", {"acao": "reler o mesmo texto"})
+                return None
             banco.registrar(pedido_id, "pedido_extraido_pelo_agente", saida.get("extraido"))
             if saida.get("valido"):
                 banco.registrar(pedido_id, "pedido_estruturado", saida["pedido"])
