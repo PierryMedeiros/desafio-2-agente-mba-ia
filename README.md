@@ -90,17 +90,17 @@ Só `interpretar` usa o modelo. Todos os outros nós são funções Python (`Fun
 ### Garantia 1: quem decide acesso é a política
 
 - `esteira/politica.py`, `acessos_da_politica` (linhas 28 a 42): soma `todos`, `por_time[time]` e `por_nivel[nivel]` de `dados/politica.json` e separa o que está em `sensiveis`.
-- `esteira/workflow.py`, `calcular_acessos` (linhas 188 a 194): é o único lugar que produz a lista de acessos, a partir de time e nível já conferidos no diretório.
-- `esteira/workflow.py`, `conferir` (linhas 111 a 182): time, cargo e nível só seguem se existirem no diretório, consultado pelo MCP (`esteira/diretorio.py`).
+- `esteira/workflow.py`, `calcular_acessos` (linhas 205 a 211): é o único lugar que produz a lista de acessos, a partir de time e nível já conferidos no diretório.
+- `esteira/workflow.py`, `conferir` (linhas 120 a 199): time, cargo e nível só seguem se existirem no diretório, consultado pelo MCP (`esteira/diretorio.py`).
 
 **Por que não depende do modelo:** o agente não tem ferramenta que crie acesso, e o `output_schema` dele (`esteira/agente.py`, `PedidoExtraido`) não tem campo de acesso. Ele só devolve time, cargo e nível, e esses valores ainda são conferidos no diretório. Qualquer que seja o texto, os acessos vêm de uma função pura sobre a política.
 
 ### Garantia 2: nada sensível sem o gestor
 
-- `esteira/workflow.py`, `aprovacao_gestor` (linhas 244 a 260): se há sensíveis, emite um `RequestInput` com o gestor do time (vindo do diretório via `consultar_time`) e a lista dos sensíveis.
-- `esteira/workflow.py`, `_no_sensiveis` / `provisionar_sensiveis` (linhas 263 a 293): cria os sensíveis só quando a resposta é `{"aprovado": true}`; com recusa, termina com lista vazia e sem erro.
-- `esteira/workflow.py`, `criar_workflow` (linhas 329 em diante): `aprovacao_gestor` é um ramo paralelo aos quatro `provisionar_*`, então os comuns são criados enquanto a decisão não chega.
-- `esteira/api.py`, `responder` (linhas 133 a 163): só aceita a resposta se `pendencia_id` for a pendência atual (senão, `409`) e valida o formato `{"aprovado": bool}`. A pendência é consumida antes de retomar, então uma segunda resposta igual recebe `409`.
+- `esteira/workflow.py`, `aprovacao_gestor` (linhas 261 a 277): se há sensíveis, emite um `RequestInput` com o gestor do time (vindo do diretório via `consultar_time`) e a lista dos sensíveis.
+- `esteira/workflow.py`, `_no_sensiveis` / `provisionar_sensiveis` (linhas 280 a 308): cria os sensíveis só quando a resposta é `{"aprovado": true}`; com recusa, termina com lista vazia e sem erro.
+- `esteira/workflow.py`, `criar_workflow` (linhas 346 em diante): `aprovacao_gestor` é um ramo paralelo aos quatro `provisionar_*`, então os comuns são criados enquanto a decisão não chega.
+- `esteira/api.py`, `responder` (linhas 133 a 162): só aceita a resposta se `pendencia_id` for a pendência atual (senão, `409`) e valida o formato `{"aprovado": bool}`. A pendência é consumida antes de retomar, então uma segunda resposta igual recebe `409`.
 - Reinício: sessões em `SqliteSessionService` (`esteira/api.py`, linhas 35 a 41) e pedidos em `var/esteira.db` (`esteira/banco.py`). Depois do reinício, o workflow reconstrói o que já rodou a partir dos eventos da sessão e só executa o que falta.
 
 **Por que não depende do modelo:** a necessidade de aprovação vem do bloco `sensiveis` da política, e a decisão vem da API. O modelo não participa de nenhuma das duas.
@@ -113,13 +113,13 @@ Só `interpretar` usa o modelo. Todos os outros nós são funções Python (`Fun
 - GitHub, `criar_github` (linha 105): `PUT` idempotente.
 - chat, `criar_chat` (linhas 126 a 139): consulta o canal antes e envia `Idempotency-Key` = `pedido_id:canal:email`. A repetição de uma chamada que gravou devolve `200` com o registro anterior.
 - nuvem, `criar_nuvem` (linhas 162 a 170): sem chave de idempotência, então cada tentativa começa com `GET /nuvem/papeis?email=` e só cria os papéis que ainda não existem. A atribuição gravada por uma chamada que respondeu `504` aparece nessa leitura e não é refeita.
-- Repetição: `esteira/workflow.py`, `REPETICAO` (linha 35), um `RetryConfig` do ADK em cada nó de sistema, com espera exponencial e até 8 tentativas. Como toda operação acima é idempotente, repetir o nó inteiro é seguro. `em_paralelo` (`esteira/sistemas.py`, linha 78) espera todas as chamadas do nó terminarem antes de propagar a falha, para não cancelar no meio uma escrita que o servidor já aplicou.
+- Repetição: `esteira/workflow.py`, `REPETICAO` (linha 36), um `RetryConfig` do ADK em cada nó de sistema, com espera exponencial e até 8 tentativas. Como toda operação acima é idempotente, repetir o nó inteiro é seguro. `em_paralelo` (`esteira/sistemas.py`, linha 78) espera todas as chamadas do nó terminarem antes de propagar a falha, para não cancelar no meio uma escrita que o servidor já aplicou.
 
 **Por que não depende do modelo:** o modelo roda antes de qualquer escrita e não participa das chamadas aos sistemas. A idempotência está em código, por sistema.
 
 ### Garantia 4: os quatro sistemas em paralelo
 
-- `esteira/workflow.py`, `criar_workflow` (linhas 329 em diante): `calcular_acessos` abre em leque para `provisionar_email`, `provisionar_github`, `provisionar_chat` e `provisionar_nuvem` (mais `aprovacao_gestor`), e `junta_admissao` é um `JoinNode` que espera todos. No desligamento, o mesmo com `revogar_*` e `junta_desligamento`.
+- `esteira/workflow.py`, `criar_workflow` (linhas 346 em diante): `calcular_acessos` abre em leque para `provisionar_email`, `provisionar_github`, `provisionar_chat` e `provisionar_nuvem` (mais `aprovacao_gestor`), e `junta_admissao` é um `JoinNode` que espera todos. No desligamento, o mesmo com `revogar_*` e `junta_desligamento`.
 - Dentro de cada nó, as chamadas de um mesmo sistema (três canais, vários papéis) também saem juntas, com `asyncio.gather`.
 
 **Por que não depende do modelo:** o paralelismo é estrutura do grafo. O `Workflow` agenda como tarefas `asyncio` todos os nós com gatilho pronto, e `GET /admin/registro` mostra as escritas nos quatro sistemas começando no mesmo instante.
