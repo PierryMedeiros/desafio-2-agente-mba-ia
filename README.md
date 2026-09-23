@@ -11,7 +11,7 @@ Em uma frase: construa com Google ADK a esteira de acessos da Nimbus, em que um 
 Entregar, num fork público do repositório base:
 
 - uma API em Python que recebe pedidos de admissão e de desligamento em texto livre e segue o contrato deste enunciado;
-- um agente que interpreta o pedido e consulta o diretório da empresa pelo servidor MCP;
+- um agente que interpreta o pedido, com o diretório da empresa consultado pelo servidor MCP;
 - um workflow que aplica a política em código, provisiona nos quatro sistemas em paralelo e espera aprovação do gestor para o que é sensível;
 - uma trilha de auditoria por pedido;
 - um README com a arquitetura, o lugar de cada garantia no código e como rodar.
@@ -65,10 +65,10 @@ Cada escrita nos sistemas leva cerca de 800 ms de propósito, para dar para enxe
 - Python 3.12 ou superior, com o projeto gerenciado por uv. O `pyproject.toml` já existe: adicione suas dependências nele.
 - Google ADK na série 2, na versão 2.2.0 (a do curso) ou mais nova, com a versão exata fixada.
 - Modelos Gemini, com chave do Google AI Studio. O modelo de cada agente é escolha sua: consulte os limites ativos do seu projeto no próprio Google AI Studio. Como ordem de grandeza, o fluxo do avaliador faz algumas dezenas de chamadas ao modelo.
-- As pastas `dados/`, `nimbus/` e `testes/` não podem ser alteradas. Os serviços simulados sobem com os comandos acima, na configuração padrão.
+- As pastas `dados/`, `nimbus/` e `testes/` não podem ser alteradas, e o código da sua solução não importa nada de `nimbus/`: aquele pacote é o mundo externo, não biblioteca. Os serviços simulados sobem com os comandos acima, na configuração padrão.
 - A sua API responde em `http://localhost:8000` e sobe com um comando documentado no README.
 - O diretório da empresa é consultado pelo servidor MCP, nunca lendo `dados/diretorio.json` direto.
-- Nenhuma chave de API versionada: o `.env` fica fora do Git e o `.env.example` é versionado com os nomes das variáveis, sem valores.
+- Nenhuma chave de API versionada: o `.env` fica fora do Git e o `.env.example` é versionado com os nomes das variáveis e sem nenhum segredo.
 - Se esbarrar em uma limitação do framework, documente no README o que encontrou e como contornou, em vez de abandonar a garantia.
 
 ## Regras de negócio
@@ -86,7 +86,7 @@ Cada escrita nos sistemas leva cerca de 800 ms de propósito, para dar para enxe
 
 Conceitos do curso: agentes, output schema e MCP.
 
-O agente transforma o texto do RH em um pedido estruturado: o tipo (admissão ou desligamento), a pessoa e, na admissão, o time, o cargo e o nível. Time, cargo e nível são conferidos no diretório, e no desligamento a pessoa também. Quando falta um dado, ou quando o dado não existe no diretório, o fluxo para e pergunta ao RH, sem inventar valor e sem criar nada antes da resposta.
+O agente transforma o texto do RH em um pedido estruturado: o tipo (admissão ou desligamento), a pessoa e, na admissão, o time, o cargo e o nível. Time, cargo e nível são conferidos no diretório, e no desligamento a pessoa também. Essa conferência pode ser feita pelo agente ou por código, desde que passe pelo servidor MCP. Quando falta um dado, ou quando o dado não existe no diretório, o fluxo para e pergunta ao RH, sem inventar valor e sem criar nada antes da resposta.
 
 ### 2. Garantia 1: quem decide acesso é a política
 
@@ -104,7 +104,7 @@ Os acessos marcados como sensíveis ficam pendentes até o gestor daquele time r
 
 Conceitos do curso: idempotência, tratamento de erros e logging.
 
-Os sistemas da Nimbus falham. Um fica indisponível por algumas chamadas e outro aplica o efeito e responde erro mesmo assim. O pedido precisa concluir apesar disso, e o resultado final não pode ter acesso duplicado nem acesso faltando. Pista: cada um dos quatro sistemas reage de um jeito diferente à chamada repetida, e `GET /admin/registro` mostra o efeito real de cada tentativa.
+Os sistemas da Nimbus falham. Um fica indisponível por algumas chamadas e outro aplica o efeito e responde erro mesmo assim. O pedido precisa concluir apesar disso, sem acesso faltando no fim e sem acesso criado duas vezes no caminho: nenhuma chamada no registro dos sistemas pode ter efeito `duplicado`. Criar o repetido e limpar depois não vale.
 
 ### 5. Garantia 4: os quatro sistemas em paralelo
 
@@ -118,7 +118,7 @@ Aqui o desafio passa do que as aulas mostram: o curso cita fluxos paralelos e re
 
 Conceitos do curso: roteamento no grafo e idempotência.
 
-O desligamento revoga todos os acessos da pessoa nos quatro sistemas, inclusive os sensíveis. Se um sistema estiver fora do ar, o fluxo insiste até concluir. Acesso de outra pessoa não é tocado.
+O desligamento revoga todos os acessos da pessoa nos quatro sistemas, inclusive os sensíveis, considerando os times e os canais que aparecem na política. Se um sistema estiver fora do ar, o fluxo insiste até concluir. Acesso de outra pessoa não é tocado.
 
 ### 7. A trilha de auditoria
 
@@ -140,7 +140,7 @@ Abrir um pedido:
 
 ```
 POST /pedidos
-{"texto": "Admissão do Rodrigo Salles como engenheiro de dados pleno, começa semana que vem"}
+{"texto": "Admissão do Rodrigo Salles como analista de produto pleno, começa semana que vem"}
 
 201
 {
@@ -154,7 +154,9 @@ POST /pedidos
 }
 ```
 
-`situacao` é `aguardando_resposta`, `concluido` ou `falhou`. `pendencia` é `null` quando não há nada esperando. `tipo` é `dado_faltante` ou `aprovacao`. Numa pendência de aprovação, a pendência traz também o gestor responsável e os acessos sensíveis em questão, nos campos que você escolher.
+As três rotas devolvem sempre o mesmo objeto, com os cinco campos do exemplo de `GET /pedidos/{pedido_id}` abaixo. O exemplo acima mostra só os três primeiros para encurtar.
+
+`situacao` é `aguardando_resposta`, `concluido` ou `falhou`. `pendencia` é `null` quando não há nada esperando. `tipo` é `dado_faltante` ou `aprovacao`. Numa pendência de aprovação, a pendência traz também o gestor responsável e os acessos sensíveis em questão, nos campos que você escolher. Os itens de `criados` e `revogados` têm formato livre, desde que identifiquem o sistema e o recurso.
 
 Responder uma pendência:
 
@@ -162,7 +164,7 @@ Responder uma pendência:
 POST /pedidos/{pedido_id}/respostas
 {"pendencia_id": "...", "resposta": {"texto": "É do time de Dados"}}
 
-200  mesmo formato da rota de pedidos
+200  mesmo objeto da rota de pedidos
 409  não existe pendência com esse id nesse pedido
 ```
 
@@ -196,7 +198,7 @@ GET /pedidos/{pedido_id}/trilha
 - Interface visual: a entrega é só a API.
 - Autenticação: quem chama a API é o RH, e a resposta do gestor chega pela mesma rota.
 - Mudança de time, cargo ou nível de quem já está na empresa.
-- Readmitir alguém que já foi desligado.
+- Readmitir alguém que já foi desligado, ou admitir quem já está ativo no diretório.
 - Reinício da API no meio da criação dos acessos. O reinício só é testado enquanto o pedido espera uma resposta humana.
 - Notificação real para as pessoas envolvidas.
 - Dois pedidos processados ao mesmo tempo: o avaliador abre um pedido por vez.
@@ -211,9 +213,9 @@ O avaliador pode variar a redação dos pedidos e responder o que for preciso pa
 
 **2.** Abre o pedido `Admissão da Carla Mendes, engenheira de software plena no time de Risco, início em 10/03.`. Confere que o pedido conclui sem nenhuma pendência, que `uv run nimbus-verificar --pessoa carla.mendes@nimbus.dev --time risco --cargo engenheiro-de-software --nivel pleno` sai com código 0 e que, em `GET /admin/registro`, existem chamadas a sistemas diferentes com intervalos sobrepostos.
 
-**3.** Abre o pedido `Admissão do Rodrigo Salles como engenheiro de dados pleno, começa semana que vem.`, que não diz o time. Confere que a situação é `aguardando_resposta` com pendência do tipo `dado_faltante` e que `GET /admin/estado?email=rodrigo.salles@nimbus.dev` não traz nenhum acesso.
+**3.** Abre o pedido `Admissão do Rodrigo Salles como analista de produto pleno, começa semana que vem.`, que não diz o time. Confere que a situação é `aguardando_resposta` com pendência do tipo `dado_faltante` e que `GET /admin/estado?email=rodrigo.salles@nimbus.dev` não traz nenhum acesso.
 
-**4.** Responde a pendência com `É do time Jurídico`, que não existe no diretório. Confere que o pedido continua esperando resposta e que nada foi criado. Responde com `É do time de Dados` e confere que o pedido conclui e que o verificador do Rodrigo, com time `dados`, cargo `engenheiro-de-dados` e nível `pleno`, sai com código 0.
+**4.** Responde a pendência com `É do time Jurídico`, que não existe no diretório. Confere que o pedido continua esperando resposta e que nada foi criado. Responde com `É do time de Dados` e confere que o pedido conclui e que o verificador do Rodrigo, com time `dados`, cargo `analista-de-produto` e nível `pleno`, sai com código 0.
 
 **5.** Abre o pedido `Admissão da Beatriz Nunes, engenheira de software sênior no time de Plataforma, entra dia 01/04.`. Confere que a situação é `aguardando_resposta` com pendência do tipo `aprovacao`, que a pendência identifica Sofia Arantes como gestora, que os acessos não sensíveis da Beatriz já existem e que `infraestrutura` no GitHub e `deploy-producao` na nuvem ainda não.
 
@@ -221,7 +223,7 @@ O avaliador pode variar a redação dos pedidos e responder o que for preciso pa
 
 **7.** Abre o pedido `Admissão do Tiago Prado, engenheiro de software sênior no time de Plataforma.` e espera a pendência de aprovação. Para a API com Ctrl+C e sobe de novo com o mesmo comando. Confere que `GET /pedidos/{id}` ainda mostra a pendência, responde `{"aprovado": true}` e confere que o verificador do Tiago, sem a flag, sai com código 0. Envia a mesma resposta de novo e confere que ela recebe `409` e que nada muda.
 
-**8.** Liga as falhas com `POST /admin/falhas` e o corpo `{"chat": {"modo": "indisponivel", "vezes": 3}, "nuvem": {"modo": "grava_e_falha", "vezes": 1}}`. Abre o pedido `Admissão da Renata Duarte, analista de produto júnior no time de Pagamentos.`. Confere que o pedido conclui, que o verificador da Renata sai com código 0 e que `GET /admin/estado?email=renata.duarte@nimbus.dev` mostra um registro por canal e uma atribuição por papel.
+**8.** Liga as falhas com `POST /admin/falhas` e o corpo `{"chat": {"modo": "indisponivel", "vezes": 3}, "nuvem": {"modo": "grava_e_falha", "vezes": 1}}`. Abre o pedido `Admissão da Renata Duarte, analista de produto júnior no time de Pagamentos.`. Confere que o pedido conclui, que o verificador da Renata sai com código 0 que `GET /admin/estado?email=renata.duarte@nimbus.dev` mostra um registro por canal e uma atribuição por papel, e que nenhuma chamada do registro tem efeito `duplicado`.
 
 **9.** Desliga as falhas com `POST /admin/falhas` e o corpo `{"chat": {"modo": "nenhum"}, "nuvem": {"modo": "nenhum"}}`. Abre o pedido `Desligamento do Marcos Vieira, último dia 30/04.`. Confere que o pedido conclui, que `uv run nimbus-verificar --pessoa marcos.vieira@nimbus.dev --desligado` sai com código 0 e que os acessos da Priscila Alencar continuam intactos.
 
@@ -229,7 +231,7 @@ O avaliador pode variar a redação dos pedidos e responder o que for preciso pa
 
 **11.** Consulta `GET /pedidos/{id}/trilha` do pedido do Tiago e confere que ela traz o pedido estruturado, a decisão do gestor e as chamadas aos sistemas com o resultado de cada uma. Confere também que `var/diretorio-consultas.log` tem consultas ao diretório.
 
-**12.** Confere no repositório: a versão exata do ADK fixada; `dados/`, `nimbus/` e `testes/` idênticos aos do repositório base; nenhuma chave versionada; a lista de acessos calculada em código a partir de `dados/politica.json`, sem o modelo escolher; o diretório consultado pelo MCP; e o README com as seções pedidas, apontando arquivos e trechos que existem.
+**12.** Confere no repositório: a versão exata do ADK fixada; `dados/`, `nimbus/` e `testes/` idênticos aos do repositório base; nenhuma chave versionada; a lista de acessos calculada em código a partir de `dados/politica.json`, sem o modelo escolher e sem importar nada de `nimbus/`; o diretório consultado pelo MCP; e o README com as seções pedidas, apontando arquivos e trechos que existem.
 
 Do ambiente limpo ao último desligamento, as cinco garantias precisam ficar de pé em todos os passos. Se qualquer verificação falhar, a entrega está incompleta.
 
@@ -253,7 +255,7 @@ O agente e o diretório
 Garantia 1: quem decide acesso é a política
 
 ☐ O verificador sai com código 0 ao final de cada admissão (passos 2, 4, 7 e 8).
-☐ A lista de acessos é calculada em código a partir de `dados/politica.json` (passo 12).
+☐ A lista de acessos é calculada em código a partir de `dados/politica.json`, sem importar nada de `nimbus/` (passo 12).
 
 Garantia 2: nada sensível sem o gestor
 
@@ -267,6 +269,7 @@ Garantia 3: cada acesso acontece uma vez só
 
 ☐ Com o chat indisponível e a nuvem gravando antes de falhar, a admissão conclui (passo 8).
 ☐ O consolidado mostra um registro por canal e uma atribuição por papel, sem duplicados (passo 8).
+☐ Nenhuma chamada do registro tem efeito `duplicado`, nem durante o processo (passo 8).
 
 Garantia 4: os quatro sistemas em paralelo
 
@@ -297,8 +300,10 @@ O README tem três seções. Arquitetura descreve o grafo do workflow, cada nó 
 
 ## Dicas finais
 
-Quando um acesso duplicar, não adivinhe onde foi: `GET /admin/registro` mostra cada tentativa com o efeito real, e é lá que aparece a chamada que gravou antes de responder erro. O mesmo registro denuncia provisionamento em fila, porque cada escrita leva cerca de 800 ms de propósito e os intervalos ficam um atrás do outro.
+Comece escolhendo o modelo com calma, porque é ali que mora o tropeço mais caro deste desafio. No plano gratuito o limite é diário e por modelo, e ele acaba rápido: se você desenvolver e validar com o mesmo modelo no mesmo dia, corre o risco de ficar sem cota no meio do fluxo do avaliador. Vale usar um modelo para desenvolver e outro para validar. Meça também a latência antes de decidir, porque ela varia muito entre modelos e uma chamada pode levar minutos. E desconfie dos modelos menores: eles trocam cargo e nível e às vezes devolvem resposta vazia depois de chamar uma ferramenta.
 
-Os dois serviços da Nimbus sobem em terminais separados e precisam rodar a partir da raiz do projeto, porque o log de consultas do diretório é gravado em `var/`. Se o diretório responder mas o agente não enxergar as ferramentas, comece conferindo o endereço, que termina em `/mcp`.
+Três comportamentos do ADK que as aulas não mostram e que economizam horas. Um nó que espera resposta humana pausa apenas o próprio ramo, e os ramos irmãos seguem até o fim. Para devolver essa resposta fora do adk web, a documentação oficial e o código-fonte do próprio ADK mostram como um cliente responde a uma pausa pendente. E a saída de um agente não chega ao plugin como saída de nó, então uma trilha montada só pelo plugin pode não enxergar o pedido extraído.
+
+Quando um acesso duplicar, não adivinhe onde foi: `GET /admin/registro` mostra cada tentativa com o efeito real, inclusive a chamada que gravou antes de responder erro. O mesmo registro denuncia provisionamento em fila, porque cada escrita leva cerca de 800 ms de propósito. Os dois serviços da Nimbus sobem em terminais separados e a partir da raiz do projeto, e o endereço do diretório termina em `/mcp`.
 
 E a filosofia do desafio cabe em uma frase: o modelo lê o pedido, a política decide o acesso e o código garante que ele aconteça uma vez só.
