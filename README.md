@@ -75,7 +75,14 @@ Só `interpretar` usa o modelo. Todos os outros nós são funções Python (`Fun
 - **A aprovação é um ramo paralelo, não uma etapa antes do provisionamento.** Os comuns ficam criados enquanto o gestor não responde, como pede a garantia 2.
 - **`provisionar_sensiveis` separado de `aprovacao_gestor`.** O nó de aprovação tem `rerun_on_resume=False` (o padrão), então na retomada a decisão vira a saída dele sem rodar de novo. Quem age sobre a decisão é o nó seguinte, e o `JoinNode` sempre recebe os cinco ramos, com aprovação, recusa ou sem sensíveis.
 - **Plugin para a trilha.** A auditoria fica num `BasePlugin` registrado no `App` e não depende de cada nó lembrar de registrar.
-- **Modelo:** `gemini-3.5-flash`, com `temperature=0` e sem *thinking* (`thinking_budget=0`), porque a tarefa é extração curta. Cada leitura de pedido faz 2 chamadas ao modelo (`listar_cargos` e a resposta final), e o fluxo completo do avaliador faz cerca de 18. Testei três modelos: `gemini-2.5-flash` acertou tudo, mas no plano gratuito tem só 20 requisições por dia por projeto, que acabaram durante o desenvolvimento; `gemini-2.5-flash-lite` devolveu resposta vazia (`MODEL_RETURNED_NO_CONTENT`) numa conversa longa e trocou o cargo em outra; `gemini-3.5-flash` acertou todos os casos. A chamada usa `HttpRetryOptions` para esperar e repetir quando o plano gratuito devolve 429 por minuto, então uma requisição pode demorar dezenas de segundos sem falhar. O modelo pode ser trocado por `ESTEIRA_MODELO`.
+- **Modelo:** `gemini-3-flash-preview`, com `temperature=0` e sem *thinking* (`thinking_budget=0`), porque a tarefa é extração curta. Cada leitura de pedido faz 2 chamadas ao modelo (`listar_cargos` e a resposta final), e o fluxo completo do avaliador faz cerca de 18. Testei cinco modelos com a mesma chave do plano gratuito:
+  - `gemini-2.5-flash` acertou tudo, mas tem só 20 requisições por dia por projeto, que acabaram durante o desenvolvimento;
+  - `gemini-2.5-flash-lite` devolveu resposta vazia (`MODEL_RETURNED_NO_CONTENT`) numa conversa longa e trocou o cargo em outra;
+  - `gemini-3.5-flash` acertou, mas levou de 1 a 4 minutos por chamada no plano gratuito;
+  - `gemini-flash-latest` e `gemini-3.1-flash-lite` responderam 503;
+  - `gemini-3-flash-preview` acertou todos os casos em cerca de 15 segundos por leitura.
+
+  A chamada usa `HttpRetryOptions` para esperar e repetir quando o plano gratuito devolve 429 por minuto. O modelo pode ser trocado por `ESTEIRA_MODELO`.
 - **Releitura quando o modelo não devolve a estrutura.** Se o agente termina sem saída estruturada, `conferir` manda o mesmo texto de volta ao agente (rota `reler`, até 2 vezes) e, se ainda assim não houver resposta, pergunta ao RH. O fluxo nunca segue com um valor adivinhado.
 
 ### Limitações do framework encontradas e como contornei
@@ -155,7 +162,7 @@ cp .env.example .env
 |---|---|---|
 | `GOOGLE_API_KEY` | sim | chave do Google AI Studio |
 | `GOOGLE_GENAI_USE_VERTEXAI` | não | `FALSE` (ou vazio) para usar o AI Studio |
-| `ESTEIRA_MODELO` | não | modelo do agente; padrão `gemini-3.5-flash` |
+| `ESTEIRA_MODELO` | não | modelo do agente; padrão `gemini-3-flash-preview` |
 | `NIMBUS_SISTEMAS_URL` | não | padrão `http://localhost:8100` |
 | `NIMBUS_DIRETORIO_URL` | não | padrão `http://localhost:8765/mcp` |
 
