@@ -609,6 +609,7 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
 
@@ -624,6 +625,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "mcp", specifier = ">=1.20,<2" },
     { name = "pydantic" },
+    { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "uvicorn" },
 ]
 

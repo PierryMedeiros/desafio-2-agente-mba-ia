@@ -10,6 +10,7 @@ dependencies = [
     "pydantic",
     "httpx",
     "google-adk==2.9.2",
+    "python-dotenv>=1.2.3",
 ]
 
 [dependency-groups]
@@ -21,6 +22,7 @@ dev = [
 nimbus-sistemas = "nimbus.sistemas:main"
 nimbus-diretorio = "nimbus.diretorio_mcp:main"
 nimbus-verificar = "nimbus.verificar:main"
+esteira-api = "esteira.api:main"
 
 [build-system]
 requires = ["uv_build"]
@@ -28,6 +30,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = ""
+module-name = ["nimbus", "esteira"]
 
 [tool.pytest.ini_options]
 testpaths = ["testes"]
